@@ -7,15 +7,13 @@ import numpy as np
 import os
 import warnings
 
-warnings.filterwarnings('ignore', category=FutureWarning) # Suppress librosa future warnings
+warnings.filterwarnings('ignore', category=FutureWarning) 
 
-# --- Configuration ---
-# !! IMPORTANT !! These MUST match the parameters used in train_models.py
+
 MAX_PAD_LEN = 174
 N_MFCC = 40
 SAMPLE_RATE = 22050
 
-# Define paths for loading models and scalers (must match saving paths)
 MODEL_DIR = "saved_models"
 GENDER_MODEL_PATH = os.path.join(MODEL_DIR, 'gender_model.joblib')
 GENDER_SCALER_PATH = os.path.join(MODEL_DIR, 'gender_scaler.joblib')
@@ -24,19 +22,17 @@ AGE_SCALER_PATH = os.path.join(MODEL_DIR, 'age_scaler.joblib')
 EMOTION_MODEL_PATH = os.path.join(MODEL_DIR, 'emotion_model.joblib')
 EMOTION_SCALER_PATH = os.path.join(MODEL_DIR, 'emotion_scaler.joblib')
 
-# Define label mappings (MUST match the encoding used during training)
-# Gender: 0 = Male, 1 = Female (Check encoding used!)
 gender_map_gui = {0: 'Male', 1: 'Female'}
 
-# Age Groups: 0 = Youth, 1 = Adult, 2 = Senior (Check encoding used!)
-age_map_gui = {0: 'Youth (0-18)', 1: 'Adult (19-60)', 2: 'Senior (61+)'}
-SENIOR_AGE_LABEL = 'Senior (61+)' # Define the label text that indicates senior
 
-# Emotion: (Check encoding used!)
+age_map_gui = {0: 'Youth (0-18)', 1: 'Adult (19-60)', 2: 'Senior (61+)'}
+SENIOR_AGE_LABEL = 'Senior (61+)' 
+
+
 emotion_map_gui = {0: 'Neutral', 1: 'Calm', 2: 'Happy', 3: 'Sad', 4: 'Angry', 5: 'Fearful', 6: 'Disgust', 7: 'Surprised'}
 
 
-# --- Load Models and Scalers ---
+
 try:
     print("Loading models and scalers...")
     gender_model = joblib.load(GENDER_MODEL_PATH)
@@ -54,23 +50,22 @@ except Exception as e:
     print(f"An unexpected error occurred during loading: {e}")
     exit()
 
-
-# --- Feature Extraction Function (Identical to training script) ---
+-
 def extract_features(file_path, n_mfcc=N_MFCC, max_pad_len=MAX_PAD_LEN, sr=SAMPLE_RATE):
     """Extracts MFCC features from an audio file, pads/truncates, and flattens."""
     try:
-        # Load audio file (limit duration to prevent excessive memory usage)
+       
         audio, sample_rate = librosa.load(file_path, res_type='kaiser_fast', sr=sr, duration=10)
         mfccs = librosa.feature.mfcc(y=audio, sr=sample_rate, n_mfcc=n_mfcc)
 
-        # Pad or truncate
+        
         pad_width = max_pad_len - mfccs.shape[1]
         if pad_width > 0:
             mfccs_padded = np.pad(mfccs, pad_width=((0, 0), (0, pad_width)), mode='constant')
         else:
             mfccs_padded = mfccs[:, :max_pad_len]
 
-        # Flatten
+        
         features_flat = mfccs_padded.flatten()
         return features_flat
 
@@ -78,10 +73,9 @@ def extract_features(file_path, n_mfcc=N_MFCC, max_pad_len=MAX_PAD_LEN, sr=SAMPL
         print(f"Error processing {file_path} for feature extraction: {e}")
         return None
 
-# --- Prediction Function ---
 def predict_audio(file_path):
     status_label.config(text="Processing audio...")
-    root.update_idletasks() # Force GUI update
+    root.update_idletasks()
 
     features = extract_features(file_path)
     if features is None:
@@ -89,50 +83,48 @@ def predict_audio(file_path):
         return
 
     try:
-        # Reshape for scaler/model (expects 2D array: 1 sample, N features)
+
         features_2d = features.reshape(1, -1)
 
-        # 1. Predict Gender
         scaled_features_gender = gender_scaler.transform(features_2d)
         gender_pred_encoded = gender_model.predict(scaled_features_gender)[0]
         gender_pred_label = gender_map_gui.get(gender_pred_encoded, f"Unknown Gender ({gender_pred_encoded})")
 
-        print(f"Predicted Gender Code: {gender_pred_encoded}, Label: {gender_pred_label}") # Debug print
+        print(f"Predicted Gender Code: {gender_pred_encoded}, Label: {gender_pred_label}") 
 
-        # Check if female
+       
         if gender_pred_label == 'Female':
             status_label.config(text="Upload male voice.")
             return
 
-        # 2. Predict Age (since it's Male)
-        # Assuming age model uses the same features/scaler - If not, adjust feature extraction/scaling here
-        scaled_features_age = age_scaler.transform(features_2d) # Use age-specific scaler
+        
+        scaled_features_age = age_scaler.transform(features_2d) 
         age_pred_encoded = age_model.predict(scaled_features_age)[0]
         age_pred_label = age_map_gui.get(age_pred_encoded, f"Unknown Age Group ({age_pred_encoded})")
 
-        print(f"Predicted Age Code: {age_pred_encoded}, Label: {age_pred_label}") # Debug print
+        print(f"Predicted Age Code: {age_pred_encoded}, Label: {age_pred_label}") 
 
         result_text = f"Gender: {gender_pred_label}\n"
         result_text += f"Predicted Age Group: {age_pred_label}\n"
 
-        # 3. Predict Emotion (Conditionally, if Senior)
+        
         is_senior = (age_pred_label == SENIOR_AGE_LABEL)
-        print(f"Is Senior: {is_senior}") # Debug print
+        print(f"Is Senior: {is_senior}") 
 
         if is_senior:
-            # Assuming emotion model uses the same features/scaler - If not, adjust feature extraction/scaling here
-            scaled_features_emotion = emotion_scaler.transform(features_2d) # Use emotion-specific scaler
+           
+            scaled_features_emotion = emotion_scaler.transform(features_2d) 
             emotion_pred_encoded = emotion_model.predict(scaled_features_emotion)[0]
             emotion_pred_label = emotion_map_gui.get(emotion_pred_encoded, f"Unknown Emotion ({emotion_pred_encoded})")
 
-            print(f"Predicted Emotion Code: {emotion_pred_encoded}, Label: {emotion_pred_label}") # Debug print
+            print(f"Predicted Emotion Code: {emotion_pred_encoded}, Label: {emotion_pred_label}") 
 
             result_text += "Status: Senior Citizen\n"
             result_text += f"Predicted Emotion: {emotion_pred_label}"
         else:
-             result_text += "Status: Not Senior Citizen" # Explicitly state status
+             result_text += "Status: Not Senior Citizen"
 
-        # Display final result
+       
         status_label.config(text=result_text)
 
     except Exception as e:
@@ -140,65 +132,63 @@ def predict_audio(file_path):
         print(f"Prediction error details: {e}")
 
 
-# --- GUI Setup ---
+
 def upload_action():
     try:
         file_path = filedialog.askopenfilename(
             title="Select Audio File",
-            filetypes=(("Audio Files", "*.wav *.mp3"), ("All files", "*.*")) # Allow common audio types
+            filetypes=(("Audio Files", "*.wav *.mp3"), ("All files", "*.*")) 
         )
-        if file_path: # Proceed only if a file was selected
+        if file_path: 
             print(f"File selected: {file_path}")
-            # Basic check if file exists (though dialog usually handles this)
+     
             if not os.path.exists(file_path):
                  status_label.config(text="Error: Selected file not found.")
                  return
             predict_audio(file_path)
         else:
-            # status_label.config(text="No file selected.") # Optional: update status if cancelled
+        
             print("File selection cancelled.")
     except Exception as e:
         status_label.config(text=f"Error during file selection: {e}")
         print(f"File dialog error: {e}")
 
 
-# --- Main Application Window ---
+
 if __name__ == "__main__":
     root = tk.Tk()
     root.title("Age & Emotion Detector (Male Voices)")
-    root.geometry("450x300") # Adjusted size for more text
+    root.geometry("450x300") 
 
-    # Use ttk for better widget styling if available
+    
     style = ttk.Style()
     try:
-        # Themes: 'clam', 'alt', 'default', 'classic'
+        
         style.theme_use('clam')
     except tk.TclError:
         print("ttk 'clam' theme not available, using default.")
 
-    # Frame for content padding and organization
+
     main_frame = ttk.Frame(root, padding="20")
     main_frame.pack(expand=True, fill=tk.BOTH)
 
-    # --- Widgets ---
-    # Title Label
+   
     title_label = ttk.Label(main_frame, text="Voice Analysis", font=("Helvetica", 16, "bold"))
     title_label.pack(pady=(0, 15))
 
-    # Upload Button
+   
     upload_button = ttk.Button(main_frame, text="Upload Audio File (.wav, .mp3)", command=upload_action, width=30)
     upload_button.pack(pady=10)
 
-    # Status/Results Label
     status_label = ttk.Label(
         main_frame,
         text="Upload an audio file to begin analysis.",
         justify=tk.LEFT,
-        wraplength=400, # Wrap text within the label width
+        wraplength=400, 
         padding=(10, 10),
-        relief=tk.SUNKEN, # Add a border effect
+        relief=tk.SUNKEN, 
         borderwidth=1,
-        anchor='nw' # Anchor text to top-left
+        anchor='nw' 
         )
     status_label.pack(pady=10, fill=tk.BOTH, expand=True)
 
